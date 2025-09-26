@@ -1,0 +1,169 @@
+<!-- REPLACE existing registration form with this block -->
+<section id="register" class="card">
+  <h3>Registration Form</h3>
+  <div class="muted">Team registration — ek team leader se submit karein. Fees ₹120 per squad.</div>
+
+  <form id="regForm" style="margin-top:12px">
+    <label>Team Name</label>
+    <input type="text" id="teamName" placeholder="Team ka naam" required>
+
+    <div class="row" style="margin-top:8px">
+      <div class="col">
+        <label>Leader Name</label>
+        <input type="text" id="leaderName" placeholder="Leader ka naam" required>
+      </div>
+      <div class="col">
+        <label>Leader UID</label>
+        <input type="text" id="leaderUID" placeholder="Leader ka UID" required>
+      </div>
+    </div>
+
+    <label style="margin-top:10px">Team Size</label>
+    <select id="teamSize">
+      <option value="4">Squad (4)</option>
+      <option value="3">3</option>
+      <option value="2">Duo (2)</option>
+      <option value="1">Solo (1)</option>
+    </select>
+
+    <!-- Member fields (Member 2-4). Hidden/shown based on Team Size -->
+    <div id="memberFields" style="margin-top:10px">
+      <div class="row">
+        <div class="col">
+          <label>Member 2 Name</label>
+          <input type="text" id="m2Name" placeholder="Member 2 name">
+        </div>
+        <div class="col">
+          <label>Member 2 UID</label>
+          <input type="text" id="m2UID" placeholder="Member 2 UID">
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:8px">
+        <div class="col">
+          <label>Member 3 Name</label>
+          <input type="text" id="m3Name" placeholder="Member 3 name">
+        </div>
+        <div class="col">
+          <label>Member 3 UID</label>
+          <input type="text" id="m3UID" placeholder="Member 3 UID">
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:8px">
+        <div class="col">
+          <label>Member 4 Name</label>
+          <input type="text" id="m4Name" placeholder="Member 4 name">
+        </div>
+        <div class="col">
+          <label>Member 4 UID</label>
+          <input type="text" id="m4UID" placeholder="Member 4 UID">
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:12px;align-items:center">
+      <button class="btn" type="submit">Submit Registration</button>
+      <button id="clearBtn" type="button" class="secondary">Clear Form</button>
+    </div>
+    <div id="regMsg" class="small" style="margin-top:10px"></div>
+  </form>
+
+  <div class="list card" style="margin-top:14px">
+    <h3 style="font-size:16px">Registered Teams</h3>
+    <div id="registeredList" class="small muted">No registrations yet.</div>
+  </div>
+</section>
+
+<!-- SCRIPT: replace old registration JS with this (put before closing </body>) -->
+<script>
+  // helper
+  function escapeHtml(s){return String(s).replace(/[&<>\"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]})}
+
+  // elements
+  const regForm = document.getElementById('regForm');
+  const regMsg = document.getElementById('regMsg');
+  const registeredList = document.getElementById('registeredList');
+  const teamSizeEl = document.getElementById('teamSize');
+
+  function loadRegistrations(){
+    const data = JSON.parse(localStorage.getItem('jh_reg')||'[]');
+    if(!data.length){registeredList.innerHTML='No registrations yet.'; return}
+    registeredList.innerHTML = '<ol style="padding-left:18px;margin:6px 0">' 
+      + data.map(d=>`<li><strong>${escapeHtml(d.team)}</strong> — Leader: ${escapeHtml(d.leader.name)} (UID: ${escapeHtml(d.leader.uid)}) <div style="font-size:13px;color:var(--muted)">Members: ${d.members.map(m=>m.name?(`${escapeHtml(m.name)} (UID:${escapeHtml(m.uid)})`):'—').join(', ')}</div></li>`).join('')
+      + '</ol>';
+  }
+
+  function visibleMemberCount(size){
+    // show/hide member fields based on size
+    const m2 = document.getElementById('m2Name').parentElement.parentElement;
+    const m3 = document.getElementById('m3Name').parentElement.parentElement;
+    const m4 = document.getElementById('m4Name').parentElement.parentElement;
+    // always show at least up to index
+    m2.style.display = size >= 2 ? 'flex' : 'none';
+    m3.style.display = size >= 3 ? 'flex' : 'none';
+    m4.style.display = size >= 4 ? 'flex' : 'none';
+  }
+
+  // initial visibility
+  visibleMemberCount(parseInt(teamSizeEl.value,10));
+
+  teamSizeEl.addEventListener('change', function(){
+    visibleMemberCount(parseInt(this.value,10));
+  });
+
+  regForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    const team = document.getElementById('teamName').value.trim();
+    const leaderName = document.getElementById('leaderName').value.trim();
+    const leaderUID = document.getElementById('leaderUID').value.trim();
+    const size = parseInt(document.getElementById('teamSize').value,10);
+
+    if(!team || !leaderName || !leaderUID){ regMsg.textContent = 'Team name, leader name aur leader UID zaroori hain.'; return; }
+
+    // collect members based on size
+    const members = [];
+    if(size >= 2){
+      members.push({name: document.getElementById('m2Name').value.trim(), uid: document.getElementById('m2UID').value.trim()});
+    } else { members.push({name:'', uid:''}); }
+    if(size >= 3){
+      members.push({name: document.getElementById('m3Name').value.trim(), uid: document.getElementById('m3UID').value.trim()});
+    } else { members.push({name:'', uid:''}); }
+    if(size >= 4){
+      members.push({name: document.getElementById('m4Name').value.trim(), uid: document.getElementById('m4UID').value.trim()});
+    } else { members.push({name:'', uid:''}); }
+
+    // Basic validation: ensure each present member has UID (if name provided)
+    for(let i=0;i<size-1;i++){
+      const m = members[i];
+      if(m.name && !m.uid){ regMsg.textContent = `Member ${i+2} ka UID daalo (agar name diya hai).`; return; }
+      if(!m.name && m.uid){ regMsg.textContent = `Member ${i+2} ka name daalo (UID diya hai).`; return; }
+    }
+
+    const entry = {
+      team,
+      leader: {name: leaderName, uid: leaderUID},
+      members: members.slice(0, size-1), // store only required members
+      teamSize: size,
+      ts: Date.now()
+    };
+
+    const arr = JSON.parse(localStorage.getItem('jh_reg')||'[]');
+    arr.push(entry);
+    localStorage.setItem('jh_reg', JSON.stringify(arr));
+    regMsg.textContent = 'Registration received! ₹120 entry fee bhej ke screenshot organizer ko bhejein.';
+    regForm.reset();
+    // reset member visibility
+    visibleMemberCount(parseInt(teamSizeEl.value,10));
+    loadRegistrations();
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', ()=>{
+    regForm.reset();
+    regMsg.textContent = 'Form cleared.';
+    visibleMemberCount(parseInt(teamSizeEl.value,10));
+  });
+
+  // init load
+  loadRegistrations();
+</script>
